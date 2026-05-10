@@ -1,0 +1,34 @@
+# PaddlePaddle GPU（根据 CUDA 版本选择来源）
+# CUDA 12.9:
+#   pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
+# CUDA 13.0:
+#   pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/
+#
+# 上述命令会自动安装对应 CUDA 版本的 nvidia 库（cublas, cudnn 等）
+# 无需预先安装 CUDA Toolkit，但需要驱动支持对应 CUDA 版本。
+
+# PaddleOCR + PaddleX（自动处理 paddleocr 和推理管道）
+paddleocr>=3.5.0
+paddlex>=3.5.0
+
+# 核心依赖
+numpy
+Pillow
+opencv-contrib-python
+pyclipper
+shapely
+
+# PaddleX 传递依赖（确保版本兼容）
+huggingface-hub
+filelock
+packaging
+prettytable
+pandas
+tqdm
+PyYAML
+ujson
+aistudio-sdk
+modelscope
+colorlog
+chardet
+psutil
