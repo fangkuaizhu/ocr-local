@@ -1,6 +1,8 @@
-# Local OCR Agent Tool
+# ocr-local
 
-本地 OCR 文字提取工具，基于 PaddleOCR + PaddlePaddle GPU，专为 AI Agent 的图片/PDF文字提取场景设计。
+> 本地 OCR 文字提取工具 · GPU 加速 · 图片 + PDF · 专为 AI Agent 设计
+
+**GitHub**: [https://github.com/fangkuaizhu/ocr-local](https://github.com/fangkuaizhu/ocr-local)
 
 ## 特性
 
@@ -25,32 +27,32 @@
 ### 1. 克隆项目
 
 ```bash
-# 确保路径不含中文字符
-cd C:/Users/YourName/
-git clone <repo-url>  # 或直接复制项目目录
+# 路径不能含中文字符！PaddlePaddle C++ 层不处理 UTF-8 路径
+git clone https://github.com/fangkuaizhu/ocr-local.git
+cd ocr-local
 ```
 
 ### 2. 创建虚拟环境
 
 ```bash
+# 需要 Python 3.10 ~ 3.12，推荐 3.12
 python -m venv ocr_env
 ```
 
 ### 3. 安装依赖
 
 ```bash
-# 激活虚拟环境
-source ocr_env/Scripts/activate    # Git Bash / MSYS2
-# 或
-ocr_env\Scripts\activate           # CMD
+# Git Bash / MSYS2
+source ocr_env/Scripts/activate
+# 或 CMD: ocr_env\Scripts\activate
 
-# 安装 PaddlePaddle GPU 版（根据你的 CUDA 版本选择）
+# 先安装 PaddlePaddle GPU（根据你的 CUDA 驱动版本选一个）
 # CUDA 12.9:
 pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
 # CUDA 13.0:
 pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/
 
-# 安装 PaddleOCR
+# 再装 OCR 组件
 pip install paddleocr paddlex
 ```
 
@@ -60,7 +62,7 @@ pip install paddleocr paddlex
 python ocr_cli.py --check
 ```
 
-首次运行会自动下载 OCR 模型（~210MB），存放在当前目录下的 `paddle_cache/`。
+首次运行自动下载 OCR 模型（~210MB），存于 `paddle_cache/`。
 
 ### 5. 使用
 
@@ -68,13 +70,13 @@ python ocr_cli.py --check
 # 图片 OCR
 python ocr_cli.py --image screenshot.png --lang ch --format text
 
-# PDF OCR
-python ocr_cli.py --image document.pdf --lang ch --format json > result.json
+# PDF OCR -> 输出 JSON 到文件
+python ocr_cli.py --image doc.pdf --lang ch --format json > result.json
 
-# 调整 PDF 渲染精度（低 DPI 更快，高 DPI 更精准）
-python ocr_cli.py --image document.pdf --dpi 150 --format text
+# 低 DPI 更快，高 DPI 更精准
+python ocr_cli.py --image doc.pdf --dpi 150 --format text
 
-# JSON 格式（包含坐标）
+# JSON 格式（含坐标框）
 python ocr_cli.py --image photo.jpg --lang ch --format json
 ```
 
@@ -139,24 +141,80 @@ ocr-local/
 └── README.md
 ```
 
-## Python API 直接调用
+## Python API
 
 ```python
 import sys
-sys.path.insert(0, "path/to/ocr-local")
+sys.path.insert(0, "/path/to/ocr-local")
 
 from ocr_core import extract_text, blocks_to_text, extract_text_from_pdf
 
-# 图片
+# 图片 OCR
 blocks = extract_text("screenshot.png", lang="ch")
 print(blocks_to_text(blocks))
 
-# PDF
+# PDF OCR
 pages = extract_text_from_pdf("doc.pdf", lang="ch", dpi=200)
 for p in pages:
     print(f"--- Page {p['page']} ---")
     print(p["text"])
 ```
+
+## Agent 集成指南
+
+本工具设计目的就是让 AI Agent（或其他自动化程序）能方便地调用本地 OCR。以下是一个标准集成流程。
+
+### 环境准备（一次性的）
+
+```bash
+# 1. 克隆到纯英文路径
+cd D:/tools/
+git clone https://github.com/fangkuaizhu/ocr-local.git
+cd ocr-local
+
+# 2. 创建并激活虚拟环境
+python -m venv ocr_env
+source ocr_env/Scripts/activate   # Git Bash 或 MSYS2
+# 或 CMD: ocr_env\Scripts\activate
+
+# 3. 安装依赖
+pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
+pip install paddleocr paddlex
+
+# 4. 验证
+python ocr_cli.py --check
+
+# 出现以下输出即环境正常：
+# [ocr] PaddlePaddle 3.3.0
+# [ocr] CUDA 可用: True
+# [ocr] GPU 数量: 1
+# [ocr] GPU 型号: NVIDIA GeForce RTX 5070 Ti ...
+```
+
+### 从 Agent Skill 中调用
+
+在 Agent 的 SKILL.md 中写入以下指令，Agent 就能自动调用 OCR：
+
+```markdown
+图片/PDF 文字提取能力：
+
+1. 项目路径：`<path>/ocr-local/`
+2. 每次调用前激活 venv：`source <path>/ocr-local/ocr_env/Scripts/activate`
+3. 使用 CLI：
+   - `python ocr_cli.py --image <图片路径> --lang ch --format json`
+   - `python ocr_cli.py --image <PDF路径> --lang ch --format json --dpi 150`
+4. 输出是 JSON，可直接解析
+```
+
+### CLI 返回值语义（Agent 判断用）
+
+| Exit Code | 含义 | Agent 行为 |
+|-----------|------|-----------|
+| 0 | 成功 | 解析 stdout JSON |
+| 1 | 参数错误 | 检查命令格式 |
+| 2 | 文件不存在 | 检查路径 |
+| 3 | 依赖缺失 | 重新安装 pip 依赖 |
+| 4 | OCR 内部错误 | 检查显存 / 模型缓存 |
 
 ## 常见问题
 
