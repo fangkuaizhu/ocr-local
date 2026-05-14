@@ -22,6 +22,7 @@ Agent 通过 bash 调用的统一入口。支持图片和 PDF 两种输入。
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -82,11 +83,85 @@ def parse_args(argv=None):
         action="store_true",
         help="仅检查依赖和环境，不执行 OCR",
     )
+    parser.add_argument(
+        "--enqueue",
+        action="store_true",
+        help="提交到后台队列（非阻塞），需 --daemon 已在运行",
+    )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="启动 OCR 守护进程（模型常驻，轮询队列）",
+    )
+    parser.add_argument(
+        "--queue-status",
+        action="store_true",
+        help="查看队列状态",
+    )
+    parser.add_argument(
+        "--wait", "-w",
+        type=int,
+        default=0,
+        metavar="SECS",
+        help="enqueue 后等待结果的最大秒数",
+    )
     return parser.parse_args(argv)
 
 
 def main():
     args = parse_args()
+
+    # ── 守护进程 ──
+    if args.daemon:
+        from queue_manager import OcrDaemon
+        OcrDaemon().run()
+        return 0
+
+    # ── 队列状态 ──
+    if args.queue_status:
+        from queue_manager import queue_status
+        print(json.dumps(queue_status(), ensure_ascii=False, indent=2))
+        return 0
+
+    # ── 提交到队列 ──
+    if args.enqueue:
+        if not args.image:
+            print("错误：--enqueue 需配合 --image", file=sys.stderr)
+            return 1
+        from queue_manager import enqueue, get_job_result, queue_status
+        path = Path(args.image)
+        if not path.exists():
+            print(f"错误：文件不存在 → {path}", file=sys.stderr)
+            return 2
+        job_id = enqueue(str(path), lang=args.lang)
+        status = queue_status()
+        print(f"OCR 任务已提交")
+        print(f"任务ID: {job_id}")
+        print(f"队列: pending={status['pending']}, running={status['running']}")
+        if not status["daemon_alive"]:
+            print("⚠ daemon 未运行，任务将等待")
+
+        # 可选等待
+        if args.wait > 0:
+            waited = 0
+            while waited < args.wait:
+                result = get_job_result(job_id)
+                if result:
+                    if result["status"] == "done":
+                        blocks = result["result"]
+                        print(f"\n完成 ({len(blocks)} 行):")
+                        for b in blocks:
+                            print(f"  [{b['text']}] ({b['confidence']:.0%})")
+                        return 0
+                    else:
+                        print(f"\n失败: {result['error']}", file=sys.stderr)
+                        return 4
+                time.sleep(2)
+                waited += 2
+            print(f"\n等待超时，任务仍在队列中。使用 --queue-status 查看。")
+        return 0
+
+    # ── 直接模式（原有逻辑）──
 
     # 依赖检查（check 模式和正常模式都需要）
     missing = check_dependencies()

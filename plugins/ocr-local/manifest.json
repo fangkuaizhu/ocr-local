@@ -1,0 +1,8 @@
+{
+  "id": "ocr-local",
+  "name": "本地OCR",
+  "version": "1.0.0",
+  "description": "GPU 加速图片/PDF 文字提取 — 基于 PaddleOCR",
+  "tools": ["tools/ocr-image.js", "tools/ocr-pdf.js"],
+  "capabilities": []
+}
